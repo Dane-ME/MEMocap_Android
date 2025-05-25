@@ -1,0 +1,240 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Center Device - Quản lý Camera</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+
+        header {
+            background-color: #333;
+            color: white;
+            padding: 10px 0;
+            text-align: center;
+        }
+
+        nav a {
+            color: white;
+            margin: 0 15px;
+            text-decoration: none;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        .camera-list {
+            margin-bottom: 20px;
+        }
+
+            .camera-list li {
+                margin: 10px 0;
+                display: flex;
+                align-items: center;
+            }
+
+            .camera-list video {
+                width: 320px;
+                height: 240px;
+                margin-right: 10px;
+                border: 1px solid #ccc;
+            }
+
+        .system-info {
+            background-color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .controls {
+            background-color: white;
+            padding: 15px;
+            border-radius: 5px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #333;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+            button:hover {
+                background-color: #555;
+            }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            background-color: #333;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Center Device - Quản lý Camera</h1>
+        <nav>
+            <a href="#">Trang chủ</a>
+            <a href="#">Giới thiệu</a>
+            <a href="#">Dịch vụ</a>
+            <a href="#">Liên hệ</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="camera-list">
+            <h2>Danh sách Camera</h2>
+            <ul id="camera-list">
+                <li>Đang kết nối...</li>
+            </ul>
+        </div>
+
+        <div class="system-info">
+            <h3>Thông tin hệ thống</h3>
+            <p>Số camera đang kết nối: <span id="camera-count">0</span></p>
+            <p>Trạng thái server: <span id="server-status">Đang kết nối</span></p>
+        </div>
+
+        <div class="controls">
+            <label for="codec-preference">Codec ưu tiên cho camera mới:</label>
+            <select id="codec-preference">
+                <option value="default">Mặc định</option>
+                <option value="vp8">VP8</option>
+                <option value="vp9">VP9</option>
+                <option value="h264">H264</option>
+            </select>
+            <button onclick="applyCodec()">Áp dụng</button>
+        </div>
+    </div>
+
+    <footer>
+        <p>© 2025 Bản quyền thuộc về Center Device</p>
+        <p>Liên hệ: <a href="mailto:contact@centerdevice.com">contact@centerdevice.com</a></p>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.0/signalr.min.js"></script>
+    <script>
+        const hubConnection = new signalR.HubConnectionBuilder()
+            .withUrl("http://192.168.1.5:5000/videoHub", {
+                skipNegotiation: false,
+                transport: signalR.HttpTransportType.WebSocket
+            })
+            .withAutomaticReconnect([0, 1000, 5000, 10000, 30000])
+            .build();
+
+        let peerConnections = {};
+
+        async function start() {
+            try {
+                await hubConnection.start();
+                document.getElementById("server-status").textContent = "Đã kết nối";
+                await hubConnection.invoke("RegisterAsCenterDevice");
+            } catch (err) {
+                console.error("Lỗi kết nối SignalR:", err);
+                document.getElementById("server-status").textContent = "Lỗi kết nối";
+            }
+        }
+
+        hubConnection.on("CameraListUpdated", (cameras) => {
+            const cameraList = document.getElementById("camera-list");
+            cameraList.innerHTML = "";
+            cameras.forEach(cam => {
+                const li = document.createElement("li");
+                const video = document.createElement("video");
+                video.id = `video-${cam.connectionId}`;
+                video.autoplay = true;
+                li.appendChild(video);
+                li.appendChild(document.createTextNode(`Camera: ${cam.cameraId}`));
+                cameraList.appendChild(li);
+
+                // Khởi tạo RTCPeerConnection cho camera mới
+                if (!peerConnections[cam.connectionId]) {
+                    peerConnections[cam.connectionId] = new RTCPeerConnection({
+                        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+                    });
+
+                    peerConnections[cam.connectionId].ontrack = (event) => {
+                        console.log(`Nhận stream từ camera ${cam.connectionId}`);
+                        const videoElement = document.getElementById(`video-${cam.connectionId}`);
+                        if (videoElement) {
+                            videoElement.srcObject = event.streams[0];
+                        }
+                    };
+
+                    peerConnections[cam.connectionId].onicecandidate = (event) => {
+                        if (event.candidate) {
+                            hubConnection.invoke("SendIceCandidate", cam.connectionId, JSON.stringify(event.candidate), cam.connectionId);
+                        }
+                    };
+                }
+            });
+            document.getElementById("camera-count").textContent = cameras.length;
+        });
+
+        hubConnection.on("ClientDisconnected", (connectionId) => {
+            const videoElement = document.getElementById(`video-${connectionId}`);
+            if (videoElement) {
+                videoElement.remove();
+            }
+            if (peerConnections[connectionId]) {
+                peerConnections[connectionId].close();
+                delete peerConnections[connectionId];
+            }
+            // Cập nhật lại danh sách camera
+            hubConnection.invoke("GetCenterDevices");
+        });
+
+        hubConnection.on("ReceiveSdp", async (clientId, sdp) => {
+            console.log(`Nhận SDP từ ${clientId}: ${sdp}`);
+            if (peerConnections[clientId]) {
+                try {
+                    await peerConnections[clientId].setRemoteDescription(JSON.parse(sdp));
+                    const answer = await peerConnections[clientId].createAnswer();
+                    await peerConnections[clientId].setLocalDescription(answer);
+                    hubConnection.invoke("SendSdp", clientId, JSON.stringify(answer), clientId);
+                } catch (err) {
+                    console.error("Lỗi xử lý SDP:", err);
+                }
+            }
+        });
+
+        hubConnection.on("ReceiveIceCandidate", async (clientId, candidate) => {
+            console.log(`Nhận ICE candidate từ ${clientId}`);
+            if (peerConnections[clientId]) {
+                try {
+                    await peerConnections[clientId].addIceCandidate(JSON.parse(candidate));
+                } catch (err) {
+                    console.error("Lỗi xử lý ICE candidate:", err);
+                }
+            }
+        });
+
+        async function applyCodec() {
+            const codec = document.getElementById("codec-preference").value;
+            try {
+                await hubConnection.invoke("SetCodecPreference", codec);
+                console.log(`Đã gửi codec ưu tiên: ${codec}`);
+            } catch (err) {
+                console.error("Lỗi khi gửi codec:", err);
+            }
+        }
+
+        hubConnection.on("Registered", (connectionId, cameras) => {
+            console.log(`Center Device đăng ký với ID: ${connectionId}, Cameras: ${cameras.length}`);
+        });
+
+        start();
+    </script>
+</body>
+</html>

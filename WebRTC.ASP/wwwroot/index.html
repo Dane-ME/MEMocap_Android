@@ -1,0 +1,158 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Stream</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        video {
+            width: 320px;
+            height: 240px;
+            border: 1px solid #ccc;
+            margin-bottom: 20px;
+        }
+
+        .controls {
+            background-color: white;
+            padding: 15px;
+            border-radius: 5px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #333;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+            button:hover {
+                background-color: #555;
+            }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Camera Stream</h2>
+        <video id="local-video" autoplay muted></video>
+        <div class="controls">
+            <label for="codec-select">Chọn codec video:</label>
+            <select id="codec-select">
+                <option value="default">Mặc định</option>
+                <option value="vp8">VP8</option>
+                <option value="vp9">VP9</option>
+                <option value="h264">H264</option>
+            </select>
+            <button onclick="applyCodec()">Áp dụng</button>
+            <p id="current-codec">Codec hiện tại: Chưa xác định</p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.0/signalr.min.js"></script>
+    <script>
+        const hubConnection = new signalR.HubConnectionBuilder()
+            .withUrl("http://192.168.1.5:5000/videoHub", {
+                skipNegotiation: false,
+                transport: signalR.HttpTransportType.WebSocket
+            })
+            .withAutomaticReconnect([0, 1000, 5000, 10000, 30000])
+            .build();
+
+        let peerConnection;
+        let localStream;
+        let centerDeviceId;
+        let cameraIdInvoke;
+        async function start() {
+            try {
+                await hubConnection.start();
+                const cameraId = `camera-${Date.now()}`; // Tạo ID duy nhất
+                await hubConnection.invoke("RegisterAsCamera", cameraId);
+                console.log(`Camera đăng ký với ID: ${cameraId}`);
+            } catch (err) {
+                console.error("Lỗi kết nối SignalR:", err);
+            }
+        }
+
+        hubConnection.on("CenterDevicesUpdated", async (centerDevices, camera) => {
+            centerDeviceId = centerDevices[0]; // Lấy ID của CenterDevice
+            cameraIdInvoke = camera;
+            console.log(`Nhận CenterDevice ID: ${centerDeviceId}`);
+            await startCamera();
+        });
+
+        hubConnection.on("UpdateCodec", (codec) => {
+            console.log(`Nhận codec mới từ CenterDevice: ${codec}`);
+            applyCodec(codec);
+        });
+
+        hubConnection.on("ReceiveSdp", async (clientId, sdp) => {
+            console.log(`Nhận SDP từ ${clientId}`);
+            try {
+                await peerConnection.setRemoteDescription(JSON.parse(sdp));
+            } catch (err) {
+                console.error("Lỗi xử lý SDP:", err);
+            }
+        });
+
+        hubConnection.on("ReceiveIceCandidate", async (clientId, candidate) => {
+            console.log(`Nhận ICE candidate từ ${clientId}`);
+            try {
+                await peerConnection.addIceCandidate(JSON.parse(candidate));
+            } catch (err) {
+                console.error("Lỗi xử lý ICE candidate:", err);
+            }
+        });
+
+        async function startCamera() {
+            try {
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                }
+
+                const codec = document.getElementById("codec-select").value;
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                document.getElementById("local-video").srcObject = localStream;
+
+                peerConnection = new RTCPeerConnection({
+                    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+                });
+
+                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        hubConnection.invoke("SendIceCandidate", cameraIdInvoke, JSON.stringify(event.candidate), centerDeviceId);
+                    }
+                };
+
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                hubConnection.invoke("SendSdp", cameraIdInvoke, JSON.stringify(offer), centerDeviceId);
+            } catch (err) {
+                console.error("Lỗi khởi động camera:", err);
+            }
+        }
+
+        async function applyCodec(codecOverride) {
+            const codec = codecOverride || document.getElementById("codec-select").value;
+            document.getElementById("current-codec").textContent = `Codec hiện tại: ${codec || "Mặc định"}`;
+            await startCamera(); // Khởi động lại camera với codec mới
+        }
+
+        start();
+    </script>
+</body>
+</html>

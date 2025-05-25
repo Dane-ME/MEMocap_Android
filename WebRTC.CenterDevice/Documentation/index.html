@@ -1,0 +1,143 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="~/lib/microsoft/signalr/dist/browser/signalr.min.js"></script>
+    <title>Trang Web Cơ Bản</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+
+        header {
+            background-color: #333;
+            color: white;
+            padding: 1em 0;
+            text-align: center;
+        }
+
+        nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        nav li {
+            margin: 0 1em;
+        }
+
+        nav a {
+            color: white;
+            text-decoration: none;
+        }
+
+        main {
+            padding: 20px;
+        }
+
+        section {
+            background-color: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        footer {
+            background-color: #333;
+            color: white;
+            text-align: center;
+            padding: 1em 0;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Chào mừng đến Trang Web Cơ Bản</h1>
+        <nav>
+            <ul>
+                <li><a href="#">Trang chủ</a></li>
+                <li><a href="#">Giới thiệu</a></li>
+                <li><a href="#">Dịch vụ</a></li>
+                <li><a href="#">Liên hệ</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section>
+            <div class="container">
+                <h2>Center Device View</h2>
+                <div id="cameraList" class="row">
+                    <!-- Camera streams will be added here dynamically -->
+                </div>
+            </div>
+        </section>
+
+        
+    </main>
+
+    <footer>
+        <p>&copy; 2025 Bản quyền thuộc về Trang Web Cơ Bản</p>
+        <p>Liên hệ: info@example.com</p>
+    </footer>
+
+    <script>
+    // JavaScript đơn giản
+    const button = document.getElementById('myButton');
+    const output = document.getElementById('output');
+
+    button.addEventListener('click', function() {
+      output.textContent = 'Bạn vừa nhấn vào nút!';
+    });
+
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/videoHub")
+            .withAutomaticReconnect()
+            .build();
+
+        async function startConnection() {
+            try {
+                await connection.start();
+                console.log("Connected to VideoHub");
+
+                await connection.invoke("RegisterAsCenterDevice");
+
+            } catch (err) {
+                console.error(err);
+                setTimeout(startConnection, 5000);
+            }
+        }
+
+        startConnection();
+
+        connection.on("Registered", (centerDeviceId, cameras) => {
+            console.log("Registered as Center Device:", centerDeviceId);
+            console.log("Available cameras:", cameras);
+            displayCameras(cameras);
+        });
+
+        connection.on("NewCameraConnected", (connectionId, cameraId) => {
+            console.log("New camera connected:", cameraId);
+            addCamera(connectionId, cameraId);
+        });
+
+        connection.on("ClientDisconnected", (connectionId) => {
+            console.log("Client disconnected:", connectionId);
+            removeCamera(connectionId);
+        });
+    </script>
+
+</body>
+</html>

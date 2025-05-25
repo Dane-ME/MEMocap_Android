@@ -1,0 +1,142 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Stream</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        #localVideo {
+            width: 100%;
+            max-width: 640px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+
+        #status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.min.js"></script>
+
+</head>
+<body>
+    <div class="container">
+        <h2>Camera Stream</h2>
+        <video id="localVideo" autoplay playsinline></video>
+        <div id="status"></div>
+    </div>
+
+    <!-- Load Scripts at the end -->
+    <script src="/lib/microsoft/signalr/dist/browser/signalr.min.js"></script>
+    <script>
+        // Initialize status display
+        const statusDiv = document.getElementById('status');
+        const localVideo = document.getElementById('localVideo');
+
+        // Setup WebRTC
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: false
+                });
+                localVideo.srcObject = stream;
+                return stream;
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+                statusDiv.textContent = 'Error accessing camera';
+                statusDiv.className = 'disconnected';
+                return null;
+            }
+        }
+
+        // Setup SignalR connection
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("http://localhost:5000/videoHub", {
+                skipNegotiation: false,
+                transport: signalR.HttpTransportType.WebSocket
+            })
+            .withAutomaticReconnect()
+            .build();
+
+        async function startConnection() {
+            try {
+                await connection.start();
+                console.log("Connected to VideoHub");
+                statusDiv.textContent = 'Connected to server';
+                statusDiv.className = 'connected';
+
+                const cameraId = "Camera_" + Math.random().toString(36).substr(2, 9);
+                await connection.invoke("RegisterAsCamera", cameraId);
+                localStorage.setItem("cameraId", cameraId);
+
+                // Start camera after connection is established
+                const stream = await setupCamera();
+                if (stream) {
+                    console.log('Camera started successfully');
+                }
+
+            } catch (err) {
+                console.error(err);
+                statusDiv.textContent = 'Connection failed. Retrying...';
+                statusDiv.className = 'disconnected';
+                setTimeout(startConnection, 5000);
+            }
+        }
+
+        // Start connection when page loads
+        startConnection();
+
+        // Handle incoming SDP from Center Device
+        connection.on("ReceiveSdp", async (fromId, sdp) => {
+            console.log("Received SDP from:", fromId);
+            // Handle SDP here - will be implemented with WebRTC logic
+        });
+
+        // Handle connection events
+        connection.onreconnecting(() => {
+            statusDiv.textContent = 'Reconnecting...';
+            statusDiv.className = 'disconnected';
+        });
+
+        connection.onreconnected(() => {
+            statusDiv.textContent = 'Reconnected';
+            statusDiv.className = 'connected';
+        });
+
+        connection.onclose(() => {
+            statusDiv.textContent = 'Connection closed';
+            statusDiv.className = 'disconnected';
+        });
+    </script>
+</body>
+</html>

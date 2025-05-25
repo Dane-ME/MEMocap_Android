@@ -1,0 +1,63 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.13.35806.99
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebRTC.Hub", "WebRTC.Hub\WebRTC.Hub.csproj", "{2BEA9D5B-3B42-4DCB-A872-CFA020DD84F3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebRTC.ASP", "WebRTC.ASP\WebRTC.ASP.csproj", "{C345F4C2-4253-4688-BAA1-EA8E4C26B8D2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebRTC.CenterDeviceASP", "WebRTC.CenterDeviceASP\WebRTC.CenterDeviceASP.csproj", "{2857905E-A171-4CEF-B399-B45ECD547C2D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebRTC.Desktop", "WebRTC.Desktop\WebRTC.Desktop.csproj", "{E420E220-53A3-49DA-9DB2-84785BB6C69C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TCPping", "TCPping\TCPping.csproj", "{1EF2EC44-5205-45DD-ADDA-C51DE32FEAEF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TCPpingMAUI", "TCPpingMAUI\TCPpingMAUI.csproj", "{6122BE68-F489-4D3E-9D3F-B4AF42B5CE39}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MEMocap.Android", "MEMocap.Android\MEMocap.Android.csproj", "{89223100-FA01-4BC0-9D85-3AC0BBF506B2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2BEA9D5B-3B42-4DCB-A872-CFA020DD84F3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2BEA9D5B-3B42-4DCB-A872-CFA020DD84F3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2BEA9D5B-3B42-4DCB-A872-CFA020DD84F3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2BEA9D5B-3B42-4DCB-A872-CFA020DD84F3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C345F4C2-4253-4688-BAA1-EA8E4C26B8D2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C345F4C2-4253-4688-BAA1-EA8E4C26B8D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C345F4C2-4253-4688-BAA1-EA8E4C26B8D2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C345F4C2-4253-4688-BAA1-EA8E4C26B8D2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2857905E-A171-4CEF-B399-B45ECD547C2D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2857905E-A171-4CEF-B399-B45ECD547C2D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2857905E-A171-4CEF-B399-B45ECD547C2D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2857905E-A171-4CEF-B399-B45ECD547C2D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E420E220-53A3-49DA-9DB2-84785BB6C69C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E420E220-53A3-49DA-9DB2-84785BB6C69C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E420E220-53A3-49DA-9DB2-84785BB6C69C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E420E220-53A3-49DA-9DB2-84785BB6C69C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1EF2EC44-5205-45DD-ADDA-C51DE32FEAEF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1EF2EC44-5205-45DD-ADDA-C51DE32FEAEF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1EF2EC44-5205-45DD-ADDA-C51DE32FEAEF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1EF2EC44-5205-45DD-ADDA-C51DE32FEAEF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6122BE68-F489-4D3E-9D3F-B4AF42B5CE39}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6122BE68-F489-4D3E-9D3F-B4AF42B5CE39}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6122BE68-F489-4D3E-9D3F-B4AF42B5CE39}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6122BE68-F489-4D3E-9D3F-B4AF42B5CE39}.Release|Any CPU.Build.0 = Release|Any CPU
+		{89223100-FA01-4BC0-9D85-3AC0BBF506B2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{89223100-FA01-4BC0-9D85-3AC0BBF506B2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{89223100-FA01-4BC0-9D85-3AC0BBF506B2}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{89223100-FA01-4BC0-9D85-3AC0BBF506B2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{89223100-FA01-4BC0-9D85-3AC0BBF506B2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{89223100-FA01-4BC0-9D85-3AC0BBF506B2}.Release|Any CPU.Deploy.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D87D5746-3CAF-4ADF-91DE-8E36633C20B4}
+	EndGlobalSection
+EndGlobal
