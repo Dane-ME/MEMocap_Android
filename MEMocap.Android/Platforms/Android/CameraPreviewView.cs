@@ -14,8 +14,8 @@ using Android.Hardware.Camera2.Params;
 using Android.Media;
 using Android.OS;
 using Android.Util;
-using Size = Android.Util.Size;
-using Image = Android.Media.Image;
+using AndroidUtilSize = Android.Util.Size;
+using AndroidMediaImage = Android.Media.Image;
 using Android.Runtime;
 using Android.Views;
 using Android.Widget;
@@ -23,39 +23,62 @@ using Java.Lang;
 using Android.Nfc;
 using Java.Util;
 using Android.Hardware.Lights;
+using MEMocap.Android.Models;
+using MEMocap.Android.Utils;
+using static Android.Views.Choreographer;
 namespace MEMocap.Android.Platforms.Android
 {
-    public class CameraPreviewView : FrameLayout, TextureView.ISurfaceTextureListener
+    public class CameraPreviewView : FrameLayout, TextureView.ISurfaceTextureListener, IDisposable
     {
-        private TextureView _textureView;
-        private CameraManager _cameraManager;
-        private string _cameraId;
-        private Size _previewSize;
-        private CameraDevice _cameraDevice;
-        private CameraCaptureSession _captureSession;
-        private CaptureRequest.Builder _previewRequestBuilder;
-        private ImageReader _imageReader;
-        private HandlerThread _backgroundThread;
-        private Handler _backgroundHandler;
+        private TextureView? _textureView;
+        private CameraManager? _cameraManager;
+        private string? _cameraId;
+        private AndroidUtilSize? _previewSize;
+        private CameraDevice? _cameraDevice;
+        private CameraCaptureSession? _captureSession;
+        private CaptureRequest.Builder? _previewRequestBuilder;
+        private ImageReader? _imageReader;
+        private HandlerThread? _backgroundThread;
+        private readonly ICameraProvider _cameraProvider;
+        private Handler? _backgroundHandler;
+        private CameraInfo? _currentCamera;
+        private ImageAvailableListener? _imageAvailableListener;
+        private bool _disposed = false;
 
-        public event EventHandler<byte[]> OnFrameAvailable;
+        public event EventHandler<byte[]>? OnFrameAvailable;
+
         public CameraPreviewView(Context context) : base(context)
         {
+            _cameraProvider = new AndroidCameraProvider();
             InitializeCameraPreview();
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed && disposing)
+            {
+                StopBackgroundThread();
+                CloseCamera();
+                _textureView?.Dispose();
+                _disposed = true;
+            }
         }
         private void InitializeCameraPreview()
         {
             _textureView = new TextureView(Context);
             _textureView.SurfaceTextureListener = this;
             AddView(_textureView);
-
-            _cameraManager = (CameraManager)Context.GetSystemService(Context.CameraService);
-            
         }
-        public void OnSurfaceTextureAvailable(SurfaceTexture surface, int width, int height)
+        public async void OnSurfaceTextureAvailable(SurfaceTexture surface, int width, int height)
         {
             StartBackgroundThread();
-            OpenCamera(width, height);
+            await OpenCameraAsync(width, height);
         }
         public bool OnSurfaceTextureDestroyed(SurfaceTexture surface)
         {
@@ -94,23 +117,21 @@ namespace MEMocap.Android.Platforms.Android
                 }
             }
         }
-        private void OpenCamera(int w, int h)
+        private async Task OpenCameraAsync(int w, int h)
         {
             try
             {
-                string[] cameraIds = _cameraManager.GetCameraIdList();
-                if(cameraIds.Length == 0)
-                {
-                    Log.Error("CameraPreviewView", "No cameras found.");
-                    return;
-                }
-                _cameraId = cameraIds[0];
-                CameraCharacteristics characteristics = _cameraManager.GetCameraCharacteristics(_cameraId);
+                _currentCamera = await _cameraProvider.GetCameraAsync(CameraType.Back);
+                _cameraManager = (CameraManager)_currentCamera.NativeCameraManager;
+                _cameraId = _currentCamera.CameraId;
+
+                CameraCharacteristics characteristics = _currentCamera.NativeCharacteristics as CameraCharacteristics;
                 StreamConfigurationMap map = (StreamConfigurationMap)characteristics.Get(CameraCharacteristics.ScalerStreamConfigurationMap);
                 if (map == null) return;
                 _previewSize = ChooseOptimalSize(map.GetOutputSizes(Class.FromType(typeof(SurfaceTexture))), w, h);
-                _imageReader = ImageReader.NewInstance(_previewSize.Width, _previewSize.Height, ImageFormatType.Yuv420888, 2);
-                _imageReader.SetOnImageAvailableListener(new ImageAvailableListener(this), _backgroundHandler);
+                _imageReader = ImageReader.NewInstance(_previewSize.Width, _previewSize.Height, ImageFormatType.Yuv420888, 6);
+                _imageAvailableListener = new ImageAvailableListener(this);
+                _imageReader.SetOnImageAvailableListener(_imageAvailableListener, _backgroundHandler);
 
                 //Java.Lang.Object intrins = characteristics.Get(CameraCharacteristics.LensIntrinsicCalibration);
 
@@ -132,18 +153,32 @@ namespace MEMocap.Android.Platforms.Android
                     Log.Error("CameraPreviewView", "Texture is null, cannot create preview session.");
                     return;
                 }
+
+                if (_imageAvailableListener == null)
+                {
+                    Log.Error("CameraPreviewView", "ImageAvailableListener is null, cannot create preview session.");
+                    return;
+                }
+
                 texture.SetDefaultBufferSize(_previewSize.Width, _previewSize.Height);
 
                 Surface previewSurface = new Surface(texture);
-                Surface readerSurface = _imageReader.Surface; // Surface từ ImageReader
+                // ✅ SỬA: Sử dụng encoder surface thay vì ImageReader surface
+                Surface encoderSurface = _imageAvailableListener.GetEncoderSurface();
+                Surface imageReaderSurface = _imageReader.Surface; // Giữ ImageReader để trigger OnImageAvailable
+
+                if (encoderSurface == null)
+                {
+                    Log.Error("CameraPreviewView", "Encoder surface is null, cannot create preview session.");
+                    return;
+                }
 
                 _previewRequestBuilder = _cameraDevice.CreateCaptureRequest(CameraTemplate.Preview);
-                //_previewRequestBuilder.AddTarget(previewSurface);
-                _previewRequestBuilder.AddTarget(readerSurface); // Thêm ImageReader vào pipeline
+                _previewRequestBuilder.AddTarget(previewSurface);
+                _previewRequestBuilder.AddTarget(encoderSurface); // ✅ Camera ghi trực tiếp vào encoder
+                _previewRequestBuilder.AddTarget(imageReaderSurface); // Trigger cho OnImageAvailable
 
-                //List<Surface> surfaces = new List<Surface> { previewSurface, readerSurface };
-                //List<Surface> surfaces = new List<Surface> { previewSurface };
-                List<Surface> surfaces = new List<Surface> { readerSurface };
+                List<Surface> surfaces = new List<Surface> { previewSurface, encoderSurface, imageReaderSurface };
 
                 _cameraDevice.CreateCaptureSession(surfaces, new CameraCaptureSessionCallback(this), _backgroundHandler);
             }
@@ -218,36 +253,39 @@ namespace MEMocap.Android.Platforms.Android
         }
         private class ImageAvailableListener : Java.Lang.Object, ImageReader.IOnImageAvailableListener
         {
-            private CameraPreviewView _parent;
+            private readonly CameraPreviewView _parent;
+            private readonly VP8SurfaceEncoder _encoder;
+            private readonly Queue<byte[]> _frameBufferPool;
+            private const int MAX_FRAME_POOL_SIZE = 3;
 
             public ImageAvailableListener(CameraPreviewView parent)
             {
                 _parent = parent;
+                _encoder = new VP8SurfaceEncoder(_parent._previewSize.Width, _parent._previewSize.Height);
+                _frameBufferPool = new Queue<byte[]>();
             }
-
+            public Surface GetEncoderSurface()
+            {
+                return _encoder?.GetInputSurface();
+            }
             public void OnImageAvailable(ImageReader? reader)
             {
-                Image image = null;
+                AndroidMediaImage? image = reader?.AcquireLatestImage();
                 try
                 {
-                    image = reader.AcquireLatestImage();
-                    if (image == null) return;
+                    // Drain encoder để lấy encoded frames
+                    byte[]? encodedFrame = _encoder.DrainEncoder();
+                    if (encodedFrame != null)
+                    {
+                        // ✅ Sử dụng pooled buffer để copy frame data
+                        byte[] frameData = GetFrameBuffer(encodedFrame.Length);
+                        Array.Copy(encodedFrame, 0, frameData, 0, encodedFrame.Length);
 
-                    // Lấy dữ liệu ảnh
-                    // Ở đây, image.Format là YUV_420_888
-                    // Bạn cần chuyển đổi nó sang định dạng phù hợp cho WebRTC (ví dụ: NV12, NV21 hoặc RGB)
-                    // và sau đó bắn sự kiện OnFrameAvailable.
-                    // Việc chuyển đổi YUV -> NV12/NV21/RGB là một phần phức tạp và yêu cầu xử lý byte buffer.
-                    // Ví dụ đơn giản (chưa tối ưu và có thể cần điều chỉnh định dạng):
+                        // Invoke với copy, giảm pressure trên original buffer
+                        _parent.OnFrameAvailable?.Invoke(_parent, frameData);
 
-                    byte[] imageData = ConvertYUV420888ToNv12(image); // Hoặc định dạng khác
-                    _parent.OnFrameAvailable?.Invoke(_parent, imageData);
-
-                    // Để chuyển đổi từ YUV_420_888 sang byte[] cho mục đích hiển thị/ghi:
-                    // ByteBuffer buffer = image.GetPlanes()[0].Buffer;
-                    // byte[] bytes = new byte[buffer.Remaining()];
-                    // buffer.Get(bytes);
-                    // _parent.OnFrameAvailable?.Invoke(_parent, bytes); // Gửi frame raw Y
+                        // Note: frameData sẽ được GC handle, hoặc có thể implement return pool
+                    }
 
                 }
                 catch (System.Exception e)
@@ -256,97 +294,34 @@ namespace MEMocap.Android.Platforms.Android
                 }
                 finally
                 {
-                    image?.Close();
+                    image?.Close(); // ✅ Quan trọng: Release ImageReader buffer
                 }
             }
-            private byte[] ConvertYUV420888ToNv12(Image image)
+
+            private byte[] GetFrameBuffer(int size)
             {
-                var yPlane = image.GetPlanes()[0];
-                var uPlane = image.GetPlanes()[1];
-                var vPlane = image.GetPlanes()[2];
-
-                var yBuffer = yPlane.Buffer;
-                var uBuffer = uPlane.Buffer;
-                var vBuffer = vPlane.Buffer;
-
-                int width = image.Width;
-                int height = image.Height;
-
-                int ySize = width * height;
-                int uvSize = width * height / 4; // Kích thước của U và V plane (đã subsample)
-
-                byte[] nv12 = new byte[ySize + uvSize * 2]; // NV12: Y + чередование UV
-
-                // Copy Y plane
-                yBuffer.Get(nv12, 0, ySize);
-
-                // Interleave U and V planes for NV12
-                int uvPos = ySize;
-                for (int i = 0; i < uvSize; i++)
+                // Simple pooling implementation
+                if (_frameBufferPool.Count > 0)
                 {
-                    nv12[uvPos++] = (byte)(uBuffer.Get() & 0xFF); // U
-                    nv12[uvPos++] = (byte)(vBuffer.Get() & 0xFF); // V
+                    var buffer = _frameBufferPool.Dequeue();
+                    if (buffer.Length >= size)
+                    {
+                        return buffer;
+                    }
+                    // Buffer quá nhỏ, return về pool và tạo mới
+                    if (_frameBufferPool.Count < MAX_FRAME_POOL_SIZE)
+                    {
+                        _frameBufferPool.Enqueue(buffer);
+                    }
                 }
 
-                return nv12;
+                return new byte[size];
             }
-            private byte[] ConvertYuv420888ToNv21(Image image)
+
+            public new void Dispose()
             {
-                // Đây là một ví dụ đơn giản và có thể cần tối ưu hóa hiệu suất
-                // và xử lý đầy đủ các planes (Y, U, V) cùng với stride.
-                // Đối với WebRTC, thường cần định dạng NV12 hoặc I420.
-                // Một cách chính xác hơn là tham khảo các thư viện chuyển đổi hoặc mã nguồn WebRTC.
-
-                var yPlane = image.GetPlanes()[0];
-                var uPlane = image.GetPlanes()[1];
-                var vPlane = image.GetPlanes()[2];
-
-                var yBuffer = yPlane.Buffer;
-                var uBuffer = uPlane.Buffer;
-                var vBuffer = vPlane.Buffer;
-
-                int ySize = yBuffer.Remaining();
-                int uSize = uBuffer.Remaining();
-                int vSize = vBuffer.Remaining();
-
-                // Kích thước của ảnh NV21: Y + UV (UV có kích thước bằng Y/2)
-                byte[] nv21 = new byte[ySize + uSize + vSize];
-
-                yBuffer.Get(nv21, 0, ySize);
-
-                // Interleave U and V planes for NV21
-                int uvStartIndex = ySize;
-                byte[] uData = new byte[uSize];
-                byte[] vData = new byte[vSize];
-                uBuffer.Get(uData);
-                vBuffer.Get(vData);
-
-                // NV21: YYYYYYYY VVUU
-                // NV12: YYYYYYYY UUVV
-                // Nếu bạn cần NV21 (YV12 với UV hoán đổi)
-                // YUV_420_888 planes are Y, U, V
-                // NV21 needs Y, V, U interleaved
-                // NV12 needs Y, U, V interleaved
-
-                // Việc chuyển đổi chính xác từ YUV_420_888 (3 planes, có thể có padding) sang NV12/NV21
-                // (2 planes, không có padding hoặc padding theo một quy tắc khác) là phức tạp.
-                // Các thư viện WebRTC thường có các helper để xử lý định dạng này.
-                // Tham khảo mã nguồn AOSP hoặc các ví dụ của thư viện WebRTC.
-                // Ví dụ đơn giản này có thể không đúng cho mọi trường hợp.
-
-                // Để đơn giản (và có thể không hoàn hảo cho WebRTC nếu không có chuyển đổi chính xác):
-                // Chỉ copy Y, sau đó là U, sau đó là V (đây không phải NV21 chuẩn)
-                // Array.Copy(uData, 0, nv21, uvStartIndex, uSize);
-                // Array.Copy(vData, 0, nv21, uvStartIndex + uSize, vSize);
-
-                // Để chuyển đổi YUV_420_888 (Android) sang NV21 hoặc I420 (chuẩn WebRTC),
-                // bạn cần xử lý từng pixel hoặc block pixel, có tính đến rowStride và pixelStride.
-                // Điều này đòi hỏi kiến thức sâu về xử lý hình ảnh.
-
-                // Một cách tiếp cận đơn giản hơn cho WebRTC là sử dụng một thư viện
-                // hoặc component Android đã tích hợp sẵn khả năng cấp feed video.
-
-                return nv21; // Trả về mảng byte chưa hoàn chỉnh, cần triển khai đúng.
+                _encoder?.Dispose();
+                _frameBufferPool.Clear();
             }
         }
         private void CloseCamera()
@@ -366,13 +341,18 @@ namespace MEMocap.Android.Platforms.Android
                 _imageReader.Close();
                 _imageReader = null;
             }
+            if (_imageAvailableListener != null)
+            {
+                _imageAvailableListener.Dispose();
+                _imageAvailableListener = null;
+            }
         }
-        private Size ChooseOptimalSize(Size[] choices, int textureWidth, int textureHeight)
+        private AndroidUtilSize ChooseOptimalSize(AndroidUtilSize[] choices, int textureWidth, int textureHeight)
         {
             // Collect the supported resolutions that are at least as large as the preview surface
-            var bigEnough = new List<Size>();
+            var bigEnough = new List<AndroidUtilSize>();
             // Collect the supported resolutions that are smaller than the preview surface
-            var notBigEnough = new List<Size>();
+            var notBigEnough = new List<AndroidUtilSize>();
             int w = textureWidth;
             int h = textureHeight;
 

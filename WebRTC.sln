@@ -15,7 +15,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TCPping", "TCPping\TCPping.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TCPpingMAUI", "TCPpingMAUI\TCPpingMAUI.csproj", "{6122BE68-F489-4D3E-9D3F-B4AF42B5CE39}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MEMocap.Android", "MEMocap.Android\MEMocap.Android.csproj", "{89223100-FA01-4BC0-9D85-3AC0BBF506B2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MEMocap.AndroidApp", "MEMocap.Android\MEMocap.AndroidApp.csproj", "{89223100-FA01-4BC0-9D85-3AC0BBF506B2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

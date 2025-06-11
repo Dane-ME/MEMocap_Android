@@ -13,6 +13,17 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+
+
+// ANDROID
+#if ANDROID
+using Android.Media;
+using System.Threading.Tasks;
+using Image = Android.Media.Image;
+using Android.Hardware.Camera2;
+using MEMocap.Android.Platforms.Android;
+
+#endif
 namespace MEMocap.Android.Utils
 {
     public interface IConnectionManager
@@ -42,7 +53,6 @@ namespace MEMocap.Android.Utils
                 }
             }
         }
-        private SIPSorceryMedia.Encoders.Codecs.Vp8Codec _videoEncoder = new();
         private RTCPeerConnection _peerConnection;
         //STREAM VIDEO
         private const uint TIMESTAMP_FREQUENCY = 90000;
@@ -69,6 +79,9 @@ namespace MEMocap.Android.Utils
             MediaStreamTrack videoTrack = new MediaStreamTrack(videoFormats, MediaStreamStatusEnum.SendOnly);
             _peerConnection.addTrack(videoTrack);
             startCamera();
+#if ANDROID
+            
+#endif
         }
         // PUBLIC
         public async Task<bool> StartSignalRAsync()
@@ -88,9 +101,9 @@ namespace MEMocap.Android.Utils
         }
         public void ProcessFrame(byte[] yuvData)
         {
-            var encodedSample = _videoEncoder.Encode(yuvData, vpxmd.VpxImgFmt.VPX_IMG_FMT_NV12);
-            uint durationRtpUnits = TIMESTAMP_FREQUENCY / 30; 
-            _peerConnection.SendVideo(durationRtpUnits, encodedSample);
+            //var encodedSample = _videoEncoder.Encode(yuvData, vpxmd.VpxImgFmt.VPX_IMG_FMT_NV12);
+            //uint durationRtpUnits = TIMESTAMP_FREQUENCY / 30; 
+            //_peerConnection.SendVideo(durationRtpUnits, encodedSample);
         }
         public void CenterDevicesUpdated()
         {

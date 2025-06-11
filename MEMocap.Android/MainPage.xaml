@@ -5,7 +5,7 @@
             x:Class="MEMocap.Android.MainPage">  
 
    <Grid>  
-       <local:CameraPreview x:Name="CameraPreiewControl" WidthRequest="1920" HeightRequest="1280" />  
+       <local:CameraPreview x:Name="CameraPreiewControl" WidthRequest="1920" HeightRequest="1440" />  
        <Button Text="Start WebRTC" Clicked="OnStartWebRTCClicked"  
                VerticalOptions="End" HorizontalOptions="Center" Margin="20" />  
    </Grid>  

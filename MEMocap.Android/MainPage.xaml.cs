@@ -1,16 +1,40 @@
 ﻿using Microsoft.Maui.Controls;
 using Microsoft.Maui.ApplicationModel;
 using System.Diagnostics;
+using MEMocap.Android.Models;
+#if ANDROID
+using MEMocap.Android.Platforms.Android;
+#endif
 
 namespace MEMocap.Android
 {
     public partial class MainPage : ContentPage
     {
+        private CameraIntrinsics _cameraIntrintics;
+        private int _cameraWidth;
+        private int _cameraHeight;
         public MainPage()
         {
             InitializeComponent();
             OnAppearing();
+            GetCameraIntrintics();
             CameraPreiewControl.FrameArrived += CameraPreviewControl_FrameArrived;
+        }
+
+        private async void GetCameraIntrintics()
+        {
+#if ANDROID
+            var cameraItrintics = new CameraService();
+            _cameraIntrintics = await cameraItrintics.GetCameraIntrinsicsAsync(CameraType.UltraWide);
+            var matrix = _cameraIntrintics.GetIntrinsicMatrix();
+            _cameraWidth = _cameraIntrintics.ImageWidth;
+            _cameraHeight = _cameraIntrintics.ImageHeight;
+#else
+            // Nếu bạn đang phát triển trên nền tảng khác, hãy xử lý ở đây.
+            // Ví dụ: iOS hoặc Windows có thể cần các phương thức khác để lấy thông tin camera.
+            await DisplayAlert("Thông báo", "Chức năng này chỉ hỗ trợ trên Android.", "OK");
+#endif
+
         }
 
         private void CameraPreviewControl_FrameArrived(object sender, byte[] frameData)
@@ -21,6 +45,11 @@ namespace MEMocap.Android
 
             // Ví dụ: Ghi kích thước frame để kiểm tra
             Debug.WriteLine($"Received frame: {frameData.Length} bytes");
+
+#if ANDROID
+            
+
+#endif
 
             // TODO: Gửi frameData này đến WebRTC PeerConnection
             // Thư viện WebRTC sẽ có các phương thức như AddVideoFrame, SendVideoData, v.v.

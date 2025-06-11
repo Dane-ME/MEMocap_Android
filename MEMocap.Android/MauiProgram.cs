@@ -1,4 +1,6 @@
-﻿namespace MEMocap.Android;
+﻿using MEMocap.Android.Services;
+
+namespace MEMocap.Android;
 
 public static class MauiProgram
 {
@@ -12,6 +14,7 @@ public static class MauiProgram
 #if ANDROID
 	            handlers.AddHandler(typeof(CameraPreview), typeof(Platforms.Android.CameraPreviewHandler));
 #endif
+                
             })
             .ConfigureFonts(fonts =>
 			{

@@ -4,6 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Maui.Controls;
+#if ANDROID
+using Android.Media;
+#endif
 
 namespace MEMocap.Android
 {
